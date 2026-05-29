@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'gym-pro-cache-v3';
+const CACHE_VERSION = 'gym-pro-cache-v12';
 const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
@@ -109,6 +109,24 @@ self.addEventListener('fetch', event => {
   }
 
   if (isAssetRequest(request)) {
+    const url = new URL(request.url);
+
+    // .js files need network-first during dev so cache doesn't serve stale ESM
+    if (url.pathname.endsWith('.js')) {
+      event.respondWith(
+        fetch(request)
+          .then(response => {
+            const responseClone = response.clone();
+            caches.open(RUNTIME_CACHE).then(cache => {
+              cache.put(request, responseClone);
+            });
+            return response;
+          })
+          .catch(() => caches.match(request))
+      );
+      return;
+    }
+
     event.respondWith(
       caches.match(request).then(response => {
         if (response) {
